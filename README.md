@@ -1,4 +1,4 @@
-# Eastern Province
+# Rapidpro for TIBA-RW
 
 # rapidpro-docker-compose
 
@@ -13,4 +13,4 @@ Note: elasticsearch is currently using ephemeral storage.
 
 Works reasonably well on a single host. Will test on docker swarm cluster next.
 
-To test with ngrok, put the ngrok domain as your RAPIDPRO_HOST environment in .env
+To test with ngrok, put the ngrok domain as your RAPIDPRO_HOST environment in .env file
