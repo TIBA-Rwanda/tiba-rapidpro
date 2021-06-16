@@ -27,8 +27,8 @@ services:
       - postgresql
       - mailroom
       - elasticsearch
-    expose:
-      - '8000'
+    ports: 
+      - "8000:8000"
     environment:
       - DOMAIN_NAME=${RAPIDPRO_HOST}
       - ALLOWED_HOSTS=${RAPIDPRO_HOST}
