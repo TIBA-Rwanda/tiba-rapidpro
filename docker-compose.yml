@@ -1,0 +1,160 @@
+version: "3"
+services:
+  nginx:
+    image: nginx
+    depends_on:
+      - rapidpro
+      - courier
+    links:
+      - rapidpro
+      - courier
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - VIRTUAL_HOST=${RAPIDPRO_HOST}
+  
+  rapidpro:
+    image: rapidpro:${RAPIDPRO_VERSION}
+    build:
+      context: ./rapidpro_build/rapidpro-docker
+      args:
+        - RAPIDPRO_VERSION=${RAPIDPRO_VERSION:-v5.2.6}
+    depends_on:
+      - redis
+      - postgresql
+      - mailroom
+      - elasticsearch
+    expose:
+      - '8000'
+    environment:
+      - DOMAIN_NAME=${RAPIDPRO_HOST}
+      - ALLOWED_HOSTS=${RAPIDPRO_HOST}
+      - TEMBA_HOST=${RAPIDPRO_HOST}
+      - DJANGO_DEBUG=${DJANGO_DEBUG}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - MANAGEPY_COLLECTSTATIC=${MANAGEPY_COLLECTSTATIC}
+      - MANAGEPY_COMPRESS=${MANAGEPY_COMPRESS}
+      - MANAGEPY_INIT_DB=${MANAGEPY_INIT_DB}
+      - MANAGEPY_MIGRATE=${MANAGEPY_MIGRATE}
+      - MAILROOM_URL=${MAILROOM_URL}
+      - MAILROOM_AUTH_TOKEN=${MAILROOM_AUTH_TOKEN}
+  celery_base:
+    image: rapidpro:${RAPIDPRO_VERSION} 
+    depends_on:
+      - rapidpro
+    links:
+      - redis
+      - postgresql
+    environment:
+      - SEND_CALLS=${SEND_CALLS}
+      - SEND_MESSAGES=${SEND_MESSAGES}
+      - SEND_AIRTIME=${SEND_AIRTIME}
+      - SEND_WEBHOOKS=${SEND_WEBHOOKS}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+    command: ["/venv/bin/celery", "--beat", "--app=temba", "worker", "--loglevel=INFO", "--queues=celery,flows"]
+  celery_msgs:
+    image: rapidpro:${RAPIDPRO_VERSION}
+    depends_on:
+      - rapidpro
+    links:
+      - redis
+      - postgresql
+    environment:
+      - SEND_CALLS=${SEND_CALLS}
+      - SEND_WEBHOOKS=${SEND_WEBHOOKS}
+      - SEND_AIRTIME=${SEND_AIRTIME}
+      - SEND_MESSAGES=${SEND_MESSAGES}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+    command: ["/venv/bin/celery", "--app=temba", "worker",  "--loglevel=INFO", "--queues=msgs,handler"]
+ 
+  redis:
+    image: redis:alpine
+  
+  postgresql:
+    image: mdillon/postgis:9.6
+    environment:
+      - POSTGRES_DB=rapidpro
+    volumes:
+      - ./data/postgres:/usr/local/var/lib/data/postgres
+
+  courier:
+   image: praekeltfoundation/courier:5.2.0
+   depends_on:
+     - rapidpro
+   links:
+     - redis
+     - postgresql
+   environment:
+     - COURIER_DOMAIN=${RAPIDPRO_HOST}
+     - COURIER_SPOOL_DIR=/tmp/courier/
+     - COURIER_DB=${DATABASE_URL}
+     - COURIER_REDIS=${REDIS_URL}
+
+  indexer:
+    image: rp-indexer:${RP_INDEXER_VERSION}
+    build:
+      context: ./rapidpro_build/rp-indexer-docker
+      args:
+        - RP_INDEXER_VERSION=${RP_INDEXER_VERSION:-5.2.0}
+    depends_on:
+      - postgresql
+      - elasticsearch
+    links:
+      - postgresql
+      - elasticsearch
+    environment:
+      - INDEXER_DB=${DATABASE_URL}
+      - INDEXER_ELASTIC_URL=${ELASTICSEARCH_URL}
+
+  elasticsearch:
+    image: elasticsearch:6.8.4
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - bootstrap.memory_lock=true
+      - Des.enforce.bootstrap.checks=true
+      - discovery_seed_hosts=["127.0.0.1"]
+      - network.host=0.0.0.0
+    ports:
+      - 9200:9200
+      - 9300:9300
+    volumes:
+      - ./data/es_data:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1          
+  mailroom:
+    image: mailroom:${MAILROOM_VERSION}
+    build:
+      context: ./rapidpro_build/mailroom-docker
+      args:
+        - MAILROOM_VERSION=${MAILROOM_VERSION:-5.2.6}
+    depends_on:
+      - postgresql
+      - redis
+    links:
+      - postgresql
+      - redis
+    environment:
+      - MAILROOM_DOMAIN=${RAPIDPRO_HOST}
+      - MAILROOM_AUTH_TOKEN=Gqcqvi2PGkoZMpQi
+      - MAILROOM_ATTACHMENT_DOMAIN=mailroom
+      - MAILROOM_DB=${DATABASE_URL}
+      - MAILROOM_REDIS=${REDIS_URL}
+      - MAILROOM_LOG_LEVEL=debug
+    command: ["mailroom", "--address", "0.0.0.0"]
+
+volumes:
+  es_data:

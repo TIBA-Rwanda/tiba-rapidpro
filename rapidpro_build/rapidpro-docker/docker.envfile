@@ -1,0 +1,15 @@
+DATABASE_URL=postgresql://postgres:postgres@postgresql/rapidpro
+REDIS_URL=redis://redis:6379/0
+SECRET_KEY=super-secret-key
+MANAGEPY_COLLECTSTATIC=on
+MANAGEPY_COMPRESS=on
+MANAGEPY_INIT_DB=on
+MANAGEPY_MIGRATE=on
+# Since we're not setting up OAuth tokens builds are subject
+# to IP based rate limiting on GitHub for TravisCI IPs which
+# can result in unpredictable builds.
+#
+# Set this to `on` if you really want to test this.
+MANAGEPY_IMPORT_GEOJSON=off
+# Use Uganda Relation ID can be used as a test
+# OSM_RELATION_IDS=192796
